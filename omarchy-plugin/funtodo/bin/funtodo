@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""Funtodo from the Omarchy bar.
+
+Talks to the Funtodo web app over HTTP. Configuration lives in
+~/.config/funtodo/plugin.json ({ "url": "...", "token": "..." }).
+"""
+
+from __future__ import annotations
+
+import argparse
+import getpass
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+DEFAULT_URL = os.environ.get("FUNTODO_URL", "http://127.0.0.1:3000")
+
+
+def config_path() -> Path:
+    override = os.environ.get("FUNTODO_CONFIG")
+    if override:
+        return Path(override).expanduser()
+    home = os.environ.get("FUNTODO_HOME")
+    if home:
+        return Path(home).expanduser() / "plugin.json"
+    return Path.home() / ".config" / "funtodo" / "plugin.json"
+
+
+def load_config() -> dict:
+    try:
+        data = json.loads(config_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_config(url: str, token: str) -> None:
+    path = config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"url": url.rstrip("/"), "token": token}, indent=2) + "\n", encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    tmp.replace(path)
+
+
+def call(url: str, path: str, method: str = "GET", body: dict | None = None, token: str | None = None) -> dict:
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {"accept": "application/json"}
+    if data is not None:
+        headers["content-type"] = "application/json"
+    if token:
+        headers["authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(
+        url.rstrip("/") + path, data=data, headers=headers, method=method
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as error:
+        try:
+            payload = json.loads(error.read().decode("utf-8") or "{}")
+        except ValueError:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        payload.setdefault("ok", False)
+        payload.setdefault("error", f"HTTP {error.code}")
+    except urllib.error.URLError as error:
+        return {"ok": False, "error": f"geen verbinding met {url}: {error.reason}"}
+    except (TimeoutError, OSError) as error:
+        return {"ok": False, "error": f"geen verbinding met {url}: {error}"}
+    return payload
+
+
+def require_config(args) -> tuple[str, str] | None:
+    config = load_config()
+    url = (args.url or config.get("url") or DEFAULT_URL).rstrip("/")
+    token = args.token or config.get("token")
+    if not token:
+        print(json.dumps({"ok": False, "error": "niet ingelogd; run: funtodo login"}))
+        return None
+    return url, token
+
+
+def emit(payload: dict, url: str | None = None) -> int:
+    if url:
+        payload.setdefault("url", url)
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_login(args) -> int:
+    config = load_config()
+    url = (args.url or config.get("url") or DEFAULT_URL).rstrip("/")
+
+    if args.token:
+        token = args.token.strip()
+        payload = call(url, "/api/plugin/status", token=token)
+        if not payload.get("ok"):
+            return emit(payload, url)
+        save_config(url, token)
+        name = (payload.get("player") or {}).get("name") or "je account"
+        print(f"Ingelogd als {name}. Token opgeslagen in {config_path()}.")
+        return 0
+
+    user = args.user or config.get("user") or ""
+    if not user:
+        user = input("Gebruikersnaam: ").strip()
+    password = getpass.getpass("Wachtwoord: ")
+    if not user or not password:
+        print("Gebruikersnaam en wachtwoord zijn allebei nodig.", file=sys.stderr)
+        return 2
+
+    payload = call(
+        url,
+        "/api/plugin/login",
+        method="POST",
+        body={"username": user, "password": password, "label": args.label},
+    )
+    token = payload.get("token")
+    if not payload.get("ok") or not token:
+        print(payload.get("error") or "inloggen mislukt", file=sys.stderr)
+        return 1
+
+    save_config(url, token)
+    print(f"Ingelogd als {user}. Token opgeslagen in {config_path()}.")
+    print("Open de balk met: omarchy plugin enable funtodo right")
+    return 0
+
+
+def cmd_status(args) -> int:
+    credentials = require_config(args)
+    if not credentials:
+        return 1
+    url, token = credentials
+    return emit(call(url, "/api/plugin/status", token=token), url)
+
+
+def cmd_add(args) -> int:
+    credentials = require_config(args)
+    if not credentials:
+        return 1
+    url, token = credentials
+    body = {
+        "action": "add",
+        "title": args.title.strip(),
+        "domain": args.domain,
+        "estimateMin": args.min,
+        "isMain": args.main,
+    }
+    if args.next:
+        body["nextAction"] = args.next
+    if args.time:
+        body["scheduledTime"] = args.time
+    payload = call(url, "/api/plugin/quests", method="POST", body=body, token=token)
+    if payload.get("ok"):
+        payload["message"] = "toegevoegd"
+    return emit(payload, url)
+
+
+def cmd_action(args) -> int:
+    credentials = require_config(args)
+    if not credentials:
+        return 1
+    url, token = credentials
+    action = {"done": "complete", "undo": "uncomplete", "defer": "defer", "rm": "delete"}[args.command]
+    payload = call(
+        url,
+        "/api/plugin/quests",
+        method="POST",
+        body={"action": action, "id": args.id},
+        token=token,
+    )
+    if payload.get("ok"):
+        payload["message"] = {
+            "done": "afgevinkt",
+            "undo": "teruggezet",
+            "defer": "doorgeschoven naar morgen",
+            "rm": "verwijderd",
+        }[args.command]
+    return emit(payload, url)
+
+
+def cmd_snooze(args) -> int:
+    credentials = require_config(args)
+    if not credentials:
+        return 1
+    url, token = credentials
+    payload = call(
+        url,
+        "/api/alarm/snooze",
+        method="POST",
+        body={"id": args.id, "minutes": args.min},
+        token=token,
+    )
+    if payload.get("ok"):
+        payload["message"] = f"wekker {args.min} min uitgesteld"
+    return emit(payload, url)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="funtodo", description="Funtodo in de Omarchy-balk")
+    parser.add_argument("--url", help="adres van de Funtodo-app")
+    parser.add_argument("--token", help="token in plaats van het opgeslagen token")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    login = sub.add_parser("login", help="sla een token op of log in")
+    login.add_argument("--user", help="gebruikersnaam")
+    login.add_argument("--token", help="bestaand token uit /profiel")
+    login.add_argument("--label", default="Omarchy-balk", help="naam voor het token")
+    login.set_defaults(func=cmd_login)
+
+    status = sub.add_parser("status", help="lees je quests van vandaag")
+    status.add_argument("--json", action="store_true", help="JSON-uitvoer (altijd aan)")
+    status.set_defaults(func=cmd_status)
+
+    add = sub.add_parser("add", help="voeg een quest voor vandaag toe")
+    add.add_argument("title")
+    add.add_argument("--domain", choices=["body", "mind", "craft", "social"], default="craft")
+    add.add_argument("--min", type=int, default=25)
+    add.add_argument("--main", action="store_true")
+    add.add_argument("--time", help="tijd als HH:MM")
+    add.add_argument("--next", help="eerste stap")
+    add.add_argument("--json", action="store_true")
+    add.set_defaults(func=cmd_add)
+
+    snooze = sub.add_parser("snooze", help="stel de wekker van een quest uit")
+    snooze.add_argument("id")
+    snooze.add_argument("--min", type=int, default=10, help="minuten uitstel")
+    snooze.add_argument("--json", action="store_true")
+    snooze.set_defaults(func=cmd_snooze)
+
+    for name, helptext in (
+        ("done", "vink een quest af"),
+        ("undo", "zet een afgevinkte quest terug"),
+        ("defer", "schuif een quest door naar morgen"),
+        ("rm", "verwijder een quest"),
+    ):
+        action = sub.add_parser(name, help=helptext)
+        action.add_argument("id")
+        action.add_argument("--json", action="store_true")
+        action.set_defaults(func=cmd_action)
+
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

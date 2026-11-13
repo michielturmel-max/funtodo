@@ -1,0 +1,1 @@
+ALTER TABLE `quests` ADD `scheduled_time` text;

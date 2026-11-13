@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "funtodo",
+  "name": "Funtodo",
+  "version": "1.1.0",
+  "author": "michiel",
+  "license": "MIT",
+  "description": "Je quests in de Omarchy-balk: zie wat er vandaag op de kaart staat, vink een stop af, voeg in één regel een nieuwe toe en zie wanneer je volgende wekker afgaat.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Panel.qml" },
+  "barWidget": {
+    "displayName": "Funtodo",
+    "description": "De balk toont een tentje met het aantal open quests van vandaag en de tijd van je volgende wekker; als die afgaat wordt het 'Nu' in de kleur van urgentie. Linksklik opent het paneel met je quests, munten, reeks en weekminuten; klik een rij om af te vinken, 'a' opent het snelle invoerveld, 's' stelt de wekker tien minuten uit, 'r' ververst en 'o' opent Funtodo in de browser. Rechtermuisknop schakelt het paneel, middelste klik ververst. De plugin leest en schrijft via ~/.config/funtodo/plugin.json; maak een token op /profiel of log in met 'funtodo login'. Maximaal vier stops per dag en één hoofdquest, net als in de app.",
+    "category": "Utilities",
+    "aliases": ["funtodo", "quests", "taken", "todo"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": { "interval": 60 },
+    "schema": [
+      {
+        "key": "interval",
+        "type": "number",
+        "label": "Verversen (seconden)",
+        "description": "Hoe vaak de balk je quests opnieuw ophaalt als het paneel dicht is."
+      }
+    ]
+  }
+}

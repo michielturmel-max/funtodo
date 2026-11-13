@@ -1,0 +1,1 @@
+ALTER TABLE `quests` ADD `snooze_until` text;

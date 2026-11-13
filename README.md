@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Funtodo
 
-## Getting Started
+Een todo-lijst die aanvoelt als een expeditie. Eén hoofdquest, drie zijpaden en een kamp dat groeit met wat je afmaakt. Meerdere gebruikers, een beheerdersrol, pushmeldingen en een widget voor de Omarchy-balk.
 
-First, run the development server:
+- **Vandaag** — je hoofdquest en zijpaden voor vandaag, met een reeks en weekoverzicht.
+- **Quests** — alles wat je hebt opgeschreven, met een inbox voor dingen zonder datum.
+- **Kamp** — munten, upgrades, een avatar en de statistieken van je expeditie.
+- **Profiel** — wachtwoord wijzigen, pushmeldingen aanzetten en tokens voor de balkwidget maken.
+- **Beheer** — als beheerder maak je accounts en stel je wachtwoorden opnieuw in.
+
+## Vereisten
+
+- Node 22 of nieuwer en npm.
+- Optioneel: Omarchy met de Quickshell-shell voor de balkwidget.
+
+## Downloaden en installeren
+
+```bash
+git clone https://github.com/michielturmel-max/funtodo.git
+cd funtodo
+npm install
+cp .env.example .env.local
+```
+
+Open `.env.local` en kies je eigen beheerdersaccount:
+
+```ini
+ADMIN_USERNAME=beheerder
+ADMIN_NAME=Beheerder
+ADMIN_PASSWORD=kies-een-lang-wachtwoord
+```
+
+Start de app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) en log in met het account uit `.env.local`. Bij de eerste start maakt de app de SQLite-database en dat account aan. Daarna kun je op `/admin/inloggen` andere gebruikers toevoegen.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Voor productie:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+De app draait dan op poort 3000. Zet `APP_URL` op het adres waarop hij bereikbaar is; dat gebruikt de app voor redirects en pushmeldingen.
 
-To learn more about Next.js, take a look at the following resources:
+### De balkwidget
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Start Funtodo, installeer daarna de plugin:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cd omarchy-plugin/funtodo
+./install.sh
+```
 
-## Deploy on Vercel
+Maak een token op `/profiel` (of run `~/.config/omarchy/plugins/funtodo/bin/funtodo login`) en zet de URL goed als de app niet op `http://127.0.0.1:3000` draait. De widget leest en schrijft via `~/.config/funtodo/plugin.json`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Wat waar staat
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| pad | inhoud |
+| --- | --- |
+| `data/funtodo.db` | gebruikers, quests, munten en geschiedenis |
+| `data/vapid.json` | automatisch gemaakt sleutelpaar voor pushmeldingen |
+| `~/.config/funtodo/plugin.json` | URL en token van de balkwidget |
+| `drizzle/` | databasemigraties; de app voert ze bij de eerste start uit |
+
+`data/` staat in `.gitignore`: je eigen voortgang hoort niet in de repository. Wil je een andere locatie, zet dan `DATABASE_FILE` in `.env.local`.
+
+## Pushmeldingen
+
+De app maakt bij de eerste start een VAPID-sleutelpaar in `data/vapid.json`. Wil je dat liever via omgevingsvariabelen doen, zet dan `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` en `VAPID_SUBJECT` in `.env.local`. Push werkt alleen in een secure context: `localhost` of HTTPS.
+
+## Ontwikkelen
+
+```bash
+npm run lint       # eslint
+npm run dev        # development met hot reload
+npm run build      # productiebuild
+```
+
+De database wordt aangemaakt met `drizzle-kit`; de migraties staan in `drizzle/`. Nieuwe migratie maken:
+
+```bash
+npx drizzle-kit generate
+```
+
+## Licentie
+
+MIT, zie [LICENSE](LICENSE).

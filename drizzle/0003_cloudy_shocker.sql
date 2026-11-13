@@ -1,0 +1,1 @@
+ALTER TABLE `players` ADD `share_activity` integer DEFAULT 1 NOT NULL;

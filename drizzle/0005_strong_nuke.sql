@@ -1,0 +1,1 @@
+ALTER TABLE `players` ADD `camp_items` text DEFAULT '[]' NOT NULL;
