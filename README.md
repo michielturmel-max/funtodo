@@ -22,6 +22,10 @@ npm install
 cp .env.example .env.local
 ```
 
+Liever geen git? Op de [releases-pagina](https://github.com/michielturmel-max/funtodo/releases)
+staat een zip van elke versie, en via de groene **Code**-knop download je de
+nieuwste broncode.
+
 Open `.env.local` en kies je eigen beheerdersaccount:
 
 ```ini
@@ -49,14 +53,22 @@ De app draait dan op poort 3000. Zet `APP_URL` op het adres waarop hij bereikbaa
 
 ### De balkwidget
 
+De widget is een aparte plugin: [funtodo-omarchy](https://github.com/michielturmel-max/funtodo-omarchy).
 Start Funtodo, installeer daarna de plugin:
 
 ```bash
-cd omarchy-plugin/funtodo
-./install.sh
+omarchy plugin add https://github.com/michielturmel-max/funtodo-omarchy --enable
 ```
 
-Maak een token op `/profiel` (of run `~/.config/omarchy/plugins/funtodo/bin/funtodo login`) en zet de URL goed als de app niet op `http://127.0.0.1:3000` draait. De widget leest en schrijft via `~/.config/funtodo/plugin.json`.
+Maak een token op `/profiel`, of log in met je wachtwoord:
+
+```bash
+~/.config/omarchy/plugins/funtodo/bin/funtodo login
+```
+
+Draait de app niet op `http://127.0.0.1:3000`, geef dan het adres mee
+(`funtodo login --url https://funtodo.example`) of vul het in bij de
+widgetinstellingen. De widget leest en schrijft via `~/.config/funtodo/plugin.json`.
 
 ## Wat waar staat
 
