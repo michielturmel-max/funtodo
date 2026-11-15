@@ -22,7 +22,6 @@ export default async function QuestsPage() {
     .sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""));
   const inbox = quests.filter((quest) => !quest.scheduledDate && quest.status !== "done");
   const done = quests.filter((quest) => quest.status === "done").slice(0, 12);
-  const hasMain = todayQuests.some((quest) => quest.isMain === 1);
 
   const sections = [
     { title: "Vandaag", items: todayQuests, note: `${todayQuests.length} op de kaart` },

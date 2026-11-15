@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { enablePush } from "@/lib/push-client";
 import { BellIcon } from "./icons";
@@ -107,12 +107,25 @@ function ringPhone() {
   });
 }
 
+const subscribeNothing = () => () => {};
+
 export function QuestAlarm({ date, alarms }: { date: string; alarms: QuestAlarmItem[] }) {
   const [active, setActive] = useState<QuestAlarmItem | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
-  const [promptDismissed, setPromptDismissed] = useState(true);
+  // De server kent de browser-API's niet; daar is dit altijd onwaar.
+  const mounted = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() =>
+    typeof window !== "undefined" && "Notification" in window
+      ? Notification.permission
+      : "unsupported",
+  );
+  const [dismissedOn, setDismissedOn] = useState<string | null>(() =>
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(`funtodo:alarm-prompt:${date}`) === "1"
+      ? date
+      : null,
+  );
   const [snoozes, setSnoozes] = useState<Record<string, string>>({});
+  const promptDismissed = dismissedOn === date;
 
   const check = useCallback(() => {
     const now = minutesNow();
@@ -136,17 +149,14 @@ export function QuestAlarm({ date, alarms }: { date: string; alarms: QuestAlarmI
   }, [alarms, date, snoozes]);
 
   useEffect(() => {
-    setMounted(true);
-    setPermission("Notification" in window ? Notification.permission : "unsupported");
-    setPromptDismissed(window.localStorage.getItem(`funtodo:alarm-prompt:${date}`) === "1");
-  }, [date]);
-
-  useEffect(() => {
     if (!mounted || alarms.length === 0) return;
 
-    check();
+    const first = window.setTimeout(check, 0);
     const interval = window.setInterval(check, 15000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(interval);
+    };
   }, [alarms.length, check, mounted]);
 
   async function enableNotifications() {
@@ -238,7 +248,7 @@ export function QuestAlarm({ date, alarms }: { date: string; alarms: QuestAlarmI
             aria-label="Niet meer vragen"
             onClick={() => {
               window.localStorage.setItem(`funtodo:alarm-prompt:${date}`, "1");
-              setPromptDismissed(true);
+              setDismissedOn(date);
             }}
           >
             Nee

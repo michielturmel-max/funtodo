@@ -41,7 +41,6 @@ export function QuestTimer({ questId, tone = "light" }: { questId: string; tone?
 
   useEffect(() => {
     if (!running) return;
-    setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [running]);
@@ -75,7 +74,14 @@ export function QuestTimer({ questId, tone = "light" }: { questId: string; tone?
     <div className="mt-4 flex flex-wrap items-center gap-2">
       <button
         type="button"
-        onClick={() => (running ? pauseTimer(questId) : startTimer(questId))}
+        onClick={() => {
+          if (running) {
+            pauseTimer(questId);
+          } else {
+            setNow(Date.now());
+            startTimer(questId);
+          }
+        }}
         aria-label={running ? "Timer pauzeren" : hasTime ? "Timer hervatten" : "Timer starten"}
         className={cn(
           "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold tabular-nums transition-colors",

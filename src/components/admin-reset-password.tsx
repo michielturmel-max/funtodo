@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { resetPasswordAction, type AuthState } from "@/server/actions/auth";
 
 const initial: AuthState = {};
@@ -16,10 +16,6 @@ function generatePassword(): string {
 export function AdminResetPassword({ userId, username }: { userId: string; username: string }) {
   const [state, formAction, pending] = useActionState(resetPasswordAction, initial);
   const [password, setPassword] = useState("");
-
-  useEffect(() => {
-    if (state.ok) setPassword("");
-  }, [state.ok]);
 
   return (
     <details className="mt-2 rounded-xl border border-line bg-paper/50 px-3 py-2">

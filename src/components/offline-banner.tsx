@@ -1,12 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { flushCompletions, pendingCompletions } from "@/lib/offline-queue";
 import { WifiOffIcon } from "./icons";
 
+function subscribeOnline(onChange: () => void) {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
+function getOfflineSnapshot() {
+  return !navigator.onLine;
+}
+
+function getServerOfflineSnapshot() {
+  return false;
+}
+
 export function OfflineBanner() {
-  const [offline, setOffline] = useState(false);
+  const offline = useSyncExternalStore(subscribeOnline, getOfflineSnapshot, getServerOfflineSnapshot);
   const [pending, setPending] = useState(0);
   const router = useRouter();
 
@@ -29,24 +46,20 @@ export function OfflineBanner() {
   }, [refreshPending, router]);
 
   useEffect(() => {
-    setOffline(!navigator.onLine);
-    void refreshPending();
+    const first = window.setTimeout(() => void refreshPending(), 0);
 
     const onOnline = () => {
-      setOffline(false);
       void sync();
     };
-    const onOffline = () => setOffline(true);
 
     window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
     const interval = window.setInterval(() => {
       void refreshPending();
     }, 15000);
 
     return () => {
+      window.clearTimeout(first);
       window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
       window.clearInterval(interval);
     };
   }, [refreshPending, sync]);

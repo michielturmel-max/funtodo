@@ -1,70 +1,29 @@
 "use client";
 
-import { useActionState, useEffect, useState, type KeyboardEvent } from "react";
+import { useActionState, useSyncExternalStore, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { createQuestStateAction, type NewQuestState } from "@/server/actions/quests";
 import { DIFFICULTIES, DOMAINS, DOMAIN_KEYS, IMPORTANCES } from "@/lib/game";
-import { ArrowRightIcon, ChevronRightIcon } from "./icons";
-
-const DRAFT_KEY = "funtodo:quest-draft";
-
-type Draft = {
-  title: string;
-  nextAction: string;
-  domain: string;
-  difficulty: string;
-  importance: string;
-  estimateMin: string;
-  scheduledDate: string;
-  scheduledTime: string;
-  isMain: boolean;
-  subtasks: string;
-};
-
-function emptyDraft(today: string): Draft {
-  return {
-    title: "",
-    nextAction: "",
-    domain: "craft",
-    difficulty: "2",
-    importance: "2",
-    estimateMin: "25",
-    scheduledDate: today,
-    scheduledTime: "",
-    isMain: false,
-    subtasks: "",
-  };
-}
+import {
+  forgetDraft,
+  getDraftSnapshot,
+  getServerDraftSnapshot,
+  saveDraft,
+  subscribeDraft,
+  type QuestDraft,
+} from "@/lib/quest-draft";
+import { ArrowRightIcon } from "./icons";
 
 export function QuestForm({ today, hasMain }: { today: string; hasMain: boolean }) {
-  const [draft, setDraft] = useState<Draft>(() => emptyDraft(today));
+  const draft = useSyncExternalStore(
+    subscribeDraft,
+    () => getDraftSnapshot(today),
+    () => getServerDraftSnapshot(today),
+  );
   const [state, formAction, pending] = useActionState(createQuestStateAction, {} as NewQuestState);
-  const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<Draft>;
-        setDraft({ ...emptyDraft(today), ...parsed, scheduledDate: parsed.scheduledDate ?? today });
-      }
-    } catch {
-      // A broken draft is not worth blocking the form.
-    }
-    setReady(true);
-  }, [today]);
-
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      // Storage can be full or blocked; the form still works.
-    }
-  }, [draft, ready]);
-
-  function update<K extends keyof Draft>(key: K, value: Draft[K]) {
-    setDraft((current) => ({ ...current, [key]: value }));
+  function update<K extends keyof QuestDraft>(key: K, value: QuestDraft[K]) {
+    saveDraft(today, { ...draft, [key]: value });
   }
 
   function blockEnter(event: KeyboardEvent<HTMLInputElement>) {
@@ -76,13 +35,7 @@ export function QuestForm({ today, hasMain }: { today: string; hasMain: boolean 
   return (
     <form
       action={formAction}
-      onSubmit={() => {
-        try {
-          window.localStorage.removeItem(DRAFT_KEY);
-        } catch {
-          // Ignored.
-        }
-      }}
+      onSubmit={() => forgetDraft(today, draft)}
       className="panel space-y-5 p-5 sm:p-6"
     >
       <div className="space-y-1.5">

@@ -1,36 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { BellIcon } from "./icons";
 import { disablePush, enablePush, getPushSubscription, pushSupported } from "@/lib/push-client";
 
 type Status = "loading" | "unsupported" | "off" | "on";
 type Message = { tone: "ok" | "error"; text: string } | null;
 
+const subscribeNothing = () => () => {};
+
 export function PushSettings() {
-  const [status, setStatus] = useState<Status>("loading");
+  // pushSupported() is alleen in de browser waar; via useSyncExternalStore
+  // blijft de server-render "niet ondersteund" en volgt de client pas daarna.
+  const supported = useSyncExternalStore(subscribeNothing, pushSupported, () => false);
+  const [remoteStatus, setRemoteStatus] = useState<Status>("loading");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<Message>(null);
+  const status: Status = supported ? remoteStatus : "unsupported";
 
   useEffect(() => {
-    if (!pushSupported()) {
-      setStatus("unsupported");
-      return;
-    }
+    if (!supported) return;
 
     let alive = true;
     getPushSubscription()
       .then((subscription) => {
-        if (alive) setStatus(subscription ? "on" : "off");
+        if (alive) setRemoteStatus(subscription ? "on" : "off");
       })
       .catch(() => {
-        if (alive) setStatus("off");
+        if (alive) setRemoteStatus("off");
       });
 
     return () => {
       alive = false;
     };
-  }, []);
+  }, [supported]);
 
   async function turnOn() {
     setPending(true);
@@ -41,7 +44,7 @@ export function PushSettings() {
         setMessage({ tone: "error", text: result.error ?? "Aanzetten lukte niet." });
         return;
       }
-      setStatus("on");
+      setRemoteStatus("on");
       setMessage({ tone: "ok", text: "Push staat aan. Je krijgt een melding als je wekker afgaat." });
     } catch {
       setMessage({ tone: "error", text: "Aanzetten lukte niet. Probeer het opnieuw." });
@@ -59,7 +62,7 @@ export function PushSettings() {
         setMessage({ tone: "error", text: result.error ?? "Uitzetten lukte niet." });
         return;
       }
-      setStatus("off");
+      setRemoteStatus("off");
       setMessage({ tone: "ok", text: "Push staat uit. Je wekker blijft werken zolang de app open is." });
     } catch {
       setMessage({ tone: "error", text: "Uitzetten lukte niet. Probeer het opnieuw." });
